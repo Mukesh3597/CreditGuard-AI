@@ -1,10 +1,18 @@
-# app/app.py
+# app/app.py  (FINAL - Render/Cloud Safe)
+
 import os
+import sys
 import subprocess
 import joblib
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+
+# ✅ Ensure project root is on PYTHONPATH (fix: No module named 'src')
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, ROOT)
+
+from src.db_utils import init_db, insert_prediction, fetch_history
 
 # ---------------- Page Config ----------------
 st.set_page_config(page_title="CreditGuard AI", page_icon="🏦", layout="centered")
@@ -12,26 +20,23 @@ st.set_page_config(page_title="CreditGuard AI", page_icon="🏦", layout="center
 st.title("🏦 CreditGuard AI")
 st.caption("Intelligent Loan Risk Assessment System (ML + SQL)")
 
-# ---------------- Ensure model exists (Render/Cloud safe) ----------------
-MODEL_PATH = "models/model.pkl"
+# ---------------- Ensure model exists (Render-safe) ----------------
+MODEL_PATH = os.path.join(ROOT, "models", "model.pkl")
 
 if not os.path.exists(MODEL_PATH):
-    os.makedirs("models", exist_ok=True)
+    os.makedirs(os.path.join(ROOT, "models"), exist_ok=True)
     try:
-        # Train model on the server if missing
-        subprocess.run(["python", "src/train.py"], check=True)
+        # ✅ Run training as module (fixes import errors on server)
+        subprocess.run([sys.executable, "-m", "src.train"], check=True)
     except Exception as e:
         st.error(f"Auto-training failed on server: {e}")
-        st.info("Tip: Check Render logs to see the exact train.py error.")
+        st.info("Tip: Open Render dashboard → Logs to see the exact train.py error.")
         st.stop()
 
 # Load model
 model = joblib.load(MODEL_PATH)
 
-# ---------------- Import DB utils (optional but included) ----------------
-# If you don't want DB, you can remove these lines and the history section.
-from src.db_utils import init_db, insert_prediction, fetch_history
-
+# Init DB
 init_db()
 
 # ---------------- UI ----------------
@@ -91,7 +96,7 @@ if st.button("Predict Risk"):
     st.subheader("Result")
     st.write(f"**Default Probability:** `{proba:.3f}`")
 
-    # Probability bar (no custom colors)
+    # Probability chart
     fig = plt.figure()
     plt.bar(["Default Probability"], [proba])
     plt.ylim(0, 1)
@@ -115,7 +120,6 @@ if st.button("Predict Risk"):
         "InterestRate": float(interest_rate),
         "LoanTerm": int(loan_term),
         "DTIRatio": float(dti_ratio),
-
         "Education": education,
         "EmploymentType": employment_type,
         "MaritalStatus": marital_status,
@@ -123,7 +127,6 @@ if st.button("Predict Risk"):
         "HasDependents": has_dependents,
         "LoanPurpose": loan_purpose,
         "HasCoSigner": has_cosigner,
-
         "prediction": pred,
         "default_probability": proba
     }
