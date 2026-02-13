@@ -1,27 +1,40 @@
+# app/app.py
+import os
+import subprocess
 import joblib
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-from src.db_utils import init_db, insert_prediction, fetch_history
-
-
-import os
-import subprocess
-
-if not os.path.exists("models/model.pkl"):
-    os.makedirs("models", exist_ok=True)
-    subprocess.run(["python", "src/train.py"], check=True)
-
+# ---------------- Page Config ----------------
 st.set_page_config(page_title="CreditGuard AI", page_icon="🏦", layout="centered")
 
 st.title("🏦 CreditGuard AI")
 st.caption("Intelligent Loan Risk Assessment System (ML + SQL)")
 
-# Init DB + Load model
-init_db()
-model = joblib.load("models/model.pkl")
+# ---------------- Ensure model exists (Render/Cloud safe) ----------------
+MODEL_PATH = "models/model.pkl"
 
+if not os.path.exists(MODEL_PATH):
+    os.makedirs("models", exist_ok=True)
+    try:
+        # Train model on the server if missing
+        subprocess.run(["python", "src/train.py"], check=True)
+    except Exception as e:
+        st.error(f"Auto-training failed on server: {e}")
+        st.info("Tip: Check Render logs to see the exact train.py error.")
+        st.stop()
+
+# Load model
+model = joblib.load(MODEL_PATH)
+
+# ---------------- Import DB utils (optional but included) ----------------
+# If you don't want DB, you can remove these lines and the history section.
+from src.db_utils import init_db, insert_prediction, fetch_history
+
+init_db()
+
+# ---------------- UI ----------------
 st.subheader("Enter Applicant Details")
 
 col1, col2, col3 = st.columns(3)
@@ -51,14 +64,15 @@ has_cosigner = st.selectbox("Has Co-Signer?", ["Yes", "No"])
 
 st.divider()
 
+# ---------------- Prediction ----------------
 if st.button("Predict Risk"):
     sample = pd.DataFrame([{
-        "Age": age,
-        "Income": income,
-        "LoanAmount": loan_amount,
-        "CreditScore": credit_score,
-        "MonthsEmployed": months_employed,
-        "NumCreditLines": num_credit_lines,
+        "Age": int(age),
+        "Income": float(income),
+        "LoanAmount": float(loan_amount),
+        "CreditScore": int(credit_score),
+        "MonthsEmployed": int(months_employed),
+        "NumCreditLines": int(num_credit_lines),
         "InterestRate": float(interest_rate),
         "LoanTerm": int(loan_term),
         "DTIRatio": float(dti_ratio),
@@ -77,6 +91,7 @@ if st.button("Predict Risk"):
     st.subheader("Result")
     st.write(f"**Default Probability:** `{proba:.3f}`")
 
+    # Probability bar (no custom colors)
     fig = plt.figure()
     plt.bar(["Default Probability"], [proba])
     plt.ylim(0, 1)
@@ -89,14 +104,14 @@ if st.button("Predict Risk"):
         st.success("✅ Low Risk: Not Likely to Default")
         st.write("Recommendation: Eligible for approval (subject to policy checks).")
 
-    # Save to DB
+    # Save to SQLite
     row = {
-        "Age": age,
-        "Income": income,
-        "LoanAmount": loan_amount,
-        "CreditScore": credit_score,
-        "MonthsEmployed": months_employed,
-        "NumCreditLines": num_credit_lines,
+        "Age": int(age),
+        "Income": float(income),
+        "LoanAmount": float(loan_amount),
+        "CreditScore": int(credit_score),
+        "MonthsEmployed": int(months_employed),
+        "NumCreditLines": int(num_credit_lines),
         "InterestRate": float(interest_rate),
         "LoanTerm": int(loan_term),
         "DTIRatio": float(dti_ratio),
@@ -116,6 +131,7 @@ if st.button("Predict Risk"):
     insert_prediction(row)
     st.info("✅ Saved to SQL Database (SQLite).")
 
+# ---------------- History ----------------
 st.divider()
 st.subheader("📜 Prediction History (Last 20)")
 
