@@ -5,6 +5,14 @@ import matplotlib.pyplot as plt
 
 from src.db_utils import init_db, insert_prediction, fetch_history
 
+
+import os
+import subprocess
+
+if not os.path.exists("models/model.pkl"):
+    os.makedirs("models", exist_ok=True)
+    subprocess.run(["python", "src/train.py"], check=True)
+
 st.set_page_config(page_title="CreditGuard AI", page_icon="🏦", layout="centered")
 
 st.title("🏦 CreditGuard AI")
