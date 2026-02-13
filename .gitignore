@@ -1,5 +1,29 @@
-models/
-db/
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
 .venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database files
+*.db
+
+# Logs
+*.log
+
+# Processed data
+data/processed/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# 🚨 VERY IMPORTANT
+models/
