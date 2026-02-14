@@ -1,16 +1,19 @@
 import os
+import sys
 import joblib
 import pandas as pd
-
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
 
-# IMPORTANT: correct import for cloud/run from root
-from src.preprocess import build_preprocessor
+# ✅ Ensure root is on path when running as module
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, ROOT)
+
+from src.preprocess import build_preprocessor  # ✅ absolute import
 
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT = ROOT
 DATA_PATH = os.path.join(PROJECT_ROOT, "data", "raw", "Loan_default.csv")
 
 MODEL_DIR = os.path.join(PROJECT_ROOT, "models")
@@ -18,11 +21,12 @@ MODEL_PATH = os.path.join(MODEL_DIR, "model.pkl")
 
 
 def load_data():
-    # Use real dataset if present
+    # 1) Use real dataset if present
     if os.path.exists(DATA_PATH):
-        return pd.read_csv(DATA_PATH)
+        df = pd.read_csv(DATA_PATH)
+        return df
 
-    # Fallback tiny demo data (so deployment never breaks)
+    # 2) Fallback small demo data (never fails)
     return pd.DataFrame([
         {"Age":30,"Income":60000,"LoanAmount":120000,"CreditScore":650,"MonthsEmployed":48,"NumCreditLines":3,"InterestRate":10,"LoanTerm":36,"DTIRatio":0.4,
          "Education":"Bachelor's","EmploymentType":"Full-time","MaritalStatus":"Married","HasMortgage":"Yes","HasDependents":"No","LoanPurpose":"Auto","HasCoSigner":"Yes","Default":0},
@@ -44,18 +48,17 @@ def main():
     if "LoanID" in df.columns:
         df = df.drop(columns=["LoanID"])
 
-    # Ensure target exists
     if "Default" not in df.columns:
-        raise ValueError("Default column not found in dataset!")
+        raise ValueError("❌ Default column not found in dataset!")
 
     X = df.drop(columns=["Default"])
     y = df["Default"]
 
     preprocessor = build_preprocessor(X)
 
-    # Cloud में fast + small model
+    # ✅ Small + fast model for Render
     rf = RandomForestClassifier(
-        n_estimators=80,
+        n_estimators=60,
         max_depth=12,
         random_state=42,
         class_weight="balanced",
@@ -67,7 +70,6 @@ def main():
         ("rf", rf)
     ])
 
-    # Stratify only when both classes exist
     strat = y if y.nunique() > 1 else None
 
     X_train, X_test, y_train, y_test = train_test_split(
