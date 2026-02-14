@@ -1,4 +1,4 @@
-# app/app.py  (FINAL - Render/Cloud Safe)
+# app/app.py  (FINAL - Render Proof)
 
 import os
 import sys
@@ -8,29 +8,35 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-# ✅ Ensure project root is on PYTHONPATH (fix: No module named 'src')
+# ✅ Fix: ensure project root available (so 'src' imports work on Render)
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
 from src.db_utils import init_db, insert_prediction, fetch_history
 
-# ---------------- Page Config ----------------
 st.set_page_config(page_title="CreditGuard AI", page_icon="🏦", layout="centered")
-
 st.title("🏦 CreditGuard AI")
 st.caption("Intelligent Loan Risk Assessment System (ML + SQL)")
 
-# ---------------- Ensure model exists (Render-safe) ----------------
 MODEL_PATH = os.path.join(ROOT, "models", "model.pkl")
 
+# ✅ Auto-train if model missing (and show real error on screen)
 if not os.path.exists(MODEL_PATH):
     os.makedirs(os.path.join(ROOT, "models"), exist_ok=True)
-    try:
-        # ✅ Run training as module (fixes import errors on server)
-        subprocess.run([sys.executable, "-m", "src.train"], check=True)
-    except Exception as e:
-        st.error(f"Auto-training failed on server: {e}")
-        st.info("Tip: Open Render dashboard → Logs to see the exact train.py error.")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "src.train"],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode != 0:
+        st.error("Auto-training failed on server.")
+        st.info("Below is the exact error from train.py (Render logs same thing).")
+        if result.stdout:
+            st.code(result.stdout, language="text")
+        if result.stderr:
+            st.code(result.stderr, language="text")
         st.stop()
 
 # Load model
@@ -96,7 +102,6 @@ if st.button("Predict Risk"):
     st.subheader("Result")
     st.write(f"**Default Probability:** `{proba:.3f}`")
 
-    # Probability chart
     fig = plt.figure()
     plt.bar(["Default Probability"], [proba])
     plt.ylim(0, 1)
@@ -109,7 +114,6 @@ if st.button("Predict Risk"):
         st.success("✅ Low Risk: Not Likely to Default")
         st.write("Recommendation: Eligible for approval (subject to policy checks).")
 
-    # Save to SQLite
     row = {
         "Age": int(age),
         "Income": float(income),
@@ -134,9 +138,7 @@ if st.button("Predict Risk"):
     insert_prediction(row)
     st.info("✅ Saved to SQL Database (SQLite).")
 
-# ---------------- History ----------------
 st.divider()
 st.subheader("📜 Prediction History (Last 20)")
-
 history = fetch_history(limit=20)
 st.dataframe(history, use_container_width=True)

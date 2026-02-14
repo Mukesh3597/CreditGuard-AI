@@ -1,32 +1,36 @@
+# src/train.py  (FINAL - Render Friendly)
+
 import os
 import sys
 import joblib
 import pandas as pd
+
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
 
-# ✅ Ensure root is on path when running as module
+# ✅ ensure root path
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from src.preprocess import build_preprocessor  # ✅ absolute import
+from src.preprocess import build_preprocessor
 
-
-PROJECT_ROOT = ROOT
-DATA_PATH = os.path.join(PROJECT_ROOT, "data", "raw", "Loan_default.csv")
-
-MODEL_DIR = os.path.join(PROJECT_ROOT, "models")
+DATA_PATH = os.path.join(ROOT, "data", "raw", "Loan_default.csv")
+MODEL_DIR = os.path.join(ROOT, "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "model.pkl")
 
 
 def load_data():
-    # 1) Use real dataset if present
     if os.path.exists(DATA_PATH):
         df = pd.read_csv(DATA_PATH)
+
+        # ✅ sample for Render (avoid heavy training)
+        if len(df) > 30000:
+            df = df.sample(30000, random_state=42).reset_index(drop=True)
+
         return df
 
-    # 2) Fallback small demo data (never fails)
+    # ✅ fallback tiny demo dataset
     return pd.DataFrame([
         {"Age":30,"Income":60000,"LoanAmount":120000,"CreditScore":650,"MonthsEmployed":48,"NumCreditLines":3,"InterestRate":10,"LoanTerm":36,"DTIRatio":0.4,
          "Education":"Bachelor's","EmploymentType":"Full-time","MaritalStatus":"Married","HasMortgage":"Yes","HasDependents":"No","LoanPurpose":"Auto","HasCoSigner":"Yes","Default":0},
@@ -44,19 +48,17 @@ def main():
 
     df = load_data()
 
-    # Drop LoanID if exists
     if "LoanID" in df.columns:
         df = df.drop(columns=["LoanID"])
 
     if "Default" not in df.columns:
-        raise ValueError("❌ Default column not found in dataset!")
+        raise ValueError("❌ Default column not found!")
 
     X = df.drop(columns=["Default"])
     y = df["Default"]
 
     preprocessor = build_preprocessor(X)
 
-    # ✅ Small + fast model for Render
     rf = RandomForestClassifier(
         n_estimators=60,
         max_depth=12,
@@ -71,7 +73,6 @@ def main():
     ])
 
     strat = y if y.nunique() > 1 else None
-
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=strat
     )
